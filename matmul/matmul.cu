@@ -70,22 +70,46 @@ void matrix_multiplication_serial_3(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m
     {
 	for (int j = 0; j < n; ++j)
 	{
-	    b_t[i * l + j] = b[j * n + i];
+	    b_t[i * n + j] = b[j * l + i];
 	}
     }
     for (int i = 0; i < m; ++i)
     {
         for (int j = 0; j < n; ++j)
-	{
-	    temp = 0.0;
-	    for (int k = 0; k < l; ++k)
-	    {
-		temp += a[i * l + k] * b_t[j * n + k];
-	    }
-	    c[i * n + j] = temp;
-	}
+        {
+            temp = 0.0;
+            for (int k = 0; k < l; ++k)
+            {
+        	temp += a[i * l + k] * b_t[j * n + k];
+            }
+            c[i * n + j] = temp;
+        }
     }
     free(b_t);
+}
+
+
+__global__ void matrix_multiplication_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+{
+    const int tidx = threadIdx.x;
+    const int bidx = blockIdx.x;
+    // thread index in grid
+    const int idx = bidx * blockDim.x + tidx;
+    // row thread in output c
+    const int row = idx / n;
+    // column thread in output c
+    const int col = idx % n;
+    if (row < m && col < n)
+    {
+	double tmp = 0.0;
+	for (int i = 0; i < l; ++i)
+	{
+	    // a=(m,l), b=(l,n)
+	    tmp += a[row * l + i] * b[i * n + col];
+	}
+	// c=(m,n)
+	c[row * n + col] = tmp;
+    }
 }
 
 
@@ -111,9 +135,12 @@ int main()
     {
 	for (int j = 0; j < INPUT_N; ++j)
 	{
-	    h_a[i * INPUT_N + j] = rand() / (DATATYPE)RAND_MAX;
+	    h_b[i * INPUT_N + j] = rand() / (DATATYPE)RAND_MAX;
 	}
     }
+    // CUDA kernel params
+    int threads = 1024;
+    int blocks = 2;
     // allocate the device for input and output
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size_a);
@@ -134,12 +161,18 @@ int main()
     {
         matrix_multiplication_serial_3(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_K);
     }
-    cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * INPUT_M * INPUT_N, cudaMemcpyDeviceToHost);
+    else if (input_flag == 3)
+    {
+	int threadsPerBlock = threads;
+	int blocksPerGrid = (INPUT_M + threadsPerBlock - 1) / threadsPerBlock;
+        matrix_multiplication_gpu_1<<<blocksPerGrid * INPUT_M, threadsPerBlock>>>(d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_K);
+        cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * INPUT_M * INPUT_N, cudaMemcpyDeviceToHost);
+    }
     print_matrix(h_c, INPUT_M, INPUT_N);
-    cudaFree(d_c);
     // memory delete
     cudaFree(d_a);
     cudaFree(d_b);
+    cudaFree(d_c);
     return 0;
 }
 
