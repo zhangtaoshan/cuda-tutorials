@@ -107,7 +107,7 @@ __global__ void matrix_multiplication_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* 
 	    // a=(m,l), b=(l,n)
 	    tmp += a[row * l + i] * b[i * n + col];
 	}
-	// c=(m,n)
+	// c=(m,n), FIXME: tmp is corect and left is incorrect
 	c[row * n + col] = tmp;
     }
 }
@@ -121,6 +121,7 @@ int main()
     srand(20);
     size_t size_a = sizeof(DATATYPE) * INPUT_M * INPUT_K;
     size_t size_b = sizeof(DATATYPE) * INPUT_K * INPUT_N;
+    size_t size_c = sizeof(DATATYPE) * INPUT_M * INPUT_N;
     DATATYPE* h_a = (DATATYPE*)malloc(size_a);
     DATATYPE* h_b = (DATATYPE*)malloc(size_b);
     // initialize input vector
@@ -146,9 +147,12 @@ int main()
     cudaMalloc((void**)&d_a, size_a);
     DATATYPE* d_b = NULL;
     cudaMalloc((void**)&d_b, size_b);
-    DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * INPUT_M * INPUT_N);
+    DATATYPE* h_c = (DATATYPE*)malloc(size_c);
     DATATYPE* d_c = NULL;
-    cudaMalloc((void**)d_c, sizeof(DATATYPE) * INPUT_M * INPUT_N);
+    cudaMalloc((void**)d_c, size_c);
+    // memory copy
+    cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
     if (input_flag == 0)
     {
         matrix_multiplication_serial_1(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_K);
@@ -166,7 +170,7 @@ int main()
 	int threadsPerBlock = threads;
 	int blocksPerGrid = (INPUT_M + threadsPerBlock - 1) / threadsPerBlock;
         matrix_multiplication_gpu_1<<<blocksPerGrid * INPUT_M, threadsPerBlock>>>(d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_K);
-        cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * INPUT_M * INPUT_N, cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
     }
     print_matrix(h_c, INPUT_M, INPUT_N);
     // memory delete
