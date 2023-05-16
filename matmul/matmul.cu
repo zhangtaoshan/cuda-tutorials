@@ -107,7 +107,7 @@ __global__ void matrix_multiplication_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* 
 	    // a=(m,l), b=(l,n)
 	    tmp += a[row * l + i] * b[i * n + col];
 	}
-	// c=(m,n), FIXME: tmp is corect and left is incorrect
+	// c=(m,n)
 	c[row * n + col] = tmp;
     }
 }
@@ -145,11 +145,26 @@ int main()
     // allocate the device for input and output
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size_a);
+    cudaError_t err = cudaGetLastError();
+    if (err != 0)
+    {
+        printf("CUDA malloc a error: %s\n", cudaGetErrorString(err));
+    }
     DATATYPE* d_b = NULL;
     cudaMalloc((void**)&d_b, size_b);
+    err = cudaGetLastError();
+    if (err != 0)
+    {
+        printf("CUDA malloc b error: %s\n", cudaGetErrorString(err));
+    }
     DATATYPE* h_c = (DATATYPE*)malloc(size_c);
     DATATYPE* d_c = NULL;
-    cudaMalloc((void**)d_c, size_c);
+    cudaMalloc((void**)&d_c, size_c);
+    err = cudaGetLastError();
+    if (err != 0)
+    {
+        printf("CUDA malloc c error: %s\n", cudaGetErrorString(err));
+    }
     // memory copy
     cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, h_b, size_b, cudaMemcpyHostToDevice);
@@ -170,6 +185,11 @@ int main()
 	int threadsPerBlock = threads;
 	int blocksPerGrid = (INPUT_M + threadsPerBlock - 1) / threadsPerBlock;
         matrix_multiplication_gpu_1<<<blocksPerGrid * INPUT_M, threadsPerBlock>>>(d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_K);
+	cudaError_t err = cudaGetLastError();
+	if (err != 0)
+	{
+	    printf("CUDA kernel error: %s\n", cudaGetErrorString(err));
+	}
         cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
     }
     print_matrix(h_c, INPUT_M, INPUT_N);
