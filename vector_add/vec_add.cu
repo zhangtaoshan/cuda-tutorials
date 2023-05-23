@@ -4,6 +4,7 @@
 #define NUM_INPUT 100
 
 
+// cpu
 void vector_add_serial(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
     for (int i = 0; i < NUM_INPUT; ++i)
@@ -26,7 +27,9 @@ __global__ void vector_add_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 // single block, multiple threads
 __global__ void vector_add_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
+    // the index of current thread
     int tid = threadIdx.x;
+    // the step of threads in block
     const int t_n = blockDim.x;
     for (; tid < NUM_INPUT; tid += t_n)
     {
@@ -38,7 +41,9 @@ __global__ void vector_add_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 // multiple blocks, multiple threads
 __global__ void vector_add_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
+    // the index of current thread
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // the step of threads in grid
     const int t_n = gridDim.x * blockDim.x;
     for (; tid < NUM_INPUT; tid += t_n)
     {
