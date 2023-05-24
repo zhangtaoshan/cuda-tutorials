@@ -1,11 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <cuda_runtime.h>
+#include <common/utils.h>
 
-#define DATATYPE float
-#define M 4
-#define N 2
-#define NUM_INPUT 9
+
+#define BLOCKS 4
+#define THREADS 512
+#define NUM_INPUT 2000
 
 __device__ unsigned int lockcount = 0;
 
@@ -24,7 +22,7 @@ void vector_add_serial(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 // single block, vector reduction
 __global__ void vector_dot_product_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
-    __shared__ DATATYPE tmp[NUM_INPUT];
+    __shared__ DATATYPE tmp[THREADS];
     const int tidx = threadIdx.x;
     const int t_n = blockDim.x;
     double temp = 0.0;
@@ -35,7 +33,7 @@ __global__ void vector_dot_product_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     tmp[tidx] = temp;
     __syncthreads();
     int i = 2, j = 1;
-    while (i <= NUM_INPUT)
+    while (i <= THREADS)
     {
 	// make the next element reduce to current even element
         if ((tidx % i) == 0)
@@ -121,11 +119,11 @@ __global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_t
 // multiple block, second reduction in gpu
 __global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
 {
-    __shared__ DATATYPE tmp[N];
+    __shared__ DATATYPE tmp[BLOCKS];
     const int tidx = threadIdx.x;
     tmp[tidx] = c_temp[tidx];
     __syncthreads();
-    int i = N / 2;
+    int i = BLOCKS / 2;
     while (i != 0)
     {
 	if (tidx < i)
@@ -285,7 +283,7 @@ int main()
     }
     else if (input_flag == 1)
     {
-        int threadsPerBlock = M;
+        int threadsPerBlock = THREADS;
         int blocksPerGrid = 1;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c = NULL;
@@ -298,7 +296,7 @@ int main()
     }
     else if (input_flag == 2)
     {
-        int threadsPerBlock = M;
+        int threadsPerBlock = THREADS;
         int blocksPerGrid = 1;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c = NULL;
@@ -311,8 +309,8 @@ int main()
     }
     else if (input_flag == 3)
     {
-        int threadsPerBlock = M;
-        int blocksPerGrid = N;
+        int threadsPerBlock = THREADS;
+        int blocksPerGrid = BLOCKS;
 	int blocknum = blocksPerGrid;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * blocknum);
         DATATYPE* d_c = NULL;
@@ -331,8 +329,8 @@ int main()
     }
     else if (input_flag == 4)
     {
-        int threadsPerBlock = M;
-        int blocksPerGrid = N;
+        int threadsPerBlock = THREADS;
+        int blocksPerGrid = BLOCKS;
 	int blocknum = blocksPerGrid;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c_temp = NULL;
@@ -349,8 +347,8 @@ int main()
     }
     else if (input_flag == 5)
     {
-        int threadsPerBlock = M;
-        int blocksPerGrid = N;
+        int threadsPerBlock = THREADS;
+        int blocksPerGrid = BLOCKS;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c = NULL;
         cudaMalloc((void**)&d_c, sizeof(DATATYPE));
@@ -363,8 +361,8 @@ int main()
     }
     else if (input_flag == 6)
     {
-        int threadsPerBlock = M;
-        int blocksPerGrid = N;
+        int threadsPerBlock = THREADS;
+        int blocksPerGrid = BLOCKS;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c = NULL;
         cudaMalloc((void**)&d_c, sizeof(DATATYPE));
@@ -377,8 +375,8 @@ int main()
     }
     else if (input_flag == 7)
     {
-        int threadsPerBlock = M;
-        int blocksPerGrid = 7;
+        int threadsPerBlock = THREADS;
+        int blocksPerGrid = BLOCKS;
 	int blocknum = blocksPerGrid;
 	DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
         DATATYPE* d_c = NULL;

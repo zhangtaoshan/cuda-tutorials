@@ -9,4 +9,5 @@ find_package(CUDA REQUIRED)
 include_directories(${CMAKE_SOURCE_DIR})
 
 add_subdirectory(vector_add)
+add_subdirectory(vector_dot)
 
