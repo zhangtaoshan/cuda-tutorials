@@ -1,4 +1,4 @@
-#include <common/utils.h>
+#include "../common/utils.h"
 
 // 输入元素数量
 #define NUM_INPUT 2048
@@ -102,16 +102,17 @@ int main()
     cudaMalloc((void**)&d_c, sizeof(DATATYPE));
     cudaError_t err = cudaGetLastError();
     if (err != 0) {
-        prinf("Error in cudaMalloc and cudaMemcpy: %s\n.", cudaGetErrorString(err));
+        printf("Error in cudaMalloc and cudaMemcpy: %s.\n", 
+            cudaGetErrorString(err));
     }
     // 定义启动核函数的参数
     dim3 blocksPerGrid(1, 1, 1);
     dim3 threadsPerBlock(THREADS, 1, 1);
-    vector_dot_product_gpu_1<<<blocksPerGrid, threadsPerBlock>>>(
+    vector_dot_product_gpu_2<<<blocksPerGrid, threadsPerBlock>>>(
         d_a, d_b, d_c);
     err = cudaGetLastError();
     if (err != 0) {
-        prinf("Error in forward: %s\n.", cudaGetErrorString(err));
+        printf("Error in forward: %s.\n", cudaGetErrorString(err));
     }
     // 拷贝输出数据
     cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
@@ -125,6 +126,6 @@ int main()
     cudaFree(d_c);
     err = cudaGetLastError();
     if (err != 0) {
-        prinf("Error in cudaFree: %s\n.", cudaGetErrorString(err));
+        printf("Error in cudaFree: %s.\n", cudaGetErrorString(err));
     }
 }

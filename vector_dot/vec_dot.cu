@@ -19,69 +19,6 @@ void vector_add_serial(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     *c = temp;
 }
 
-
-
-
-// 使用多个block，最后规约在CPU上做，每个block内部发生了和gpu_2中相同的操作
-__global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_temp)
-{
-    __shared__ DATATYPE tmp[THREADS];
-    const int tidx = threadIdx.x;
-    const int bidx = blockIdx.x;
-    const int t_n = blockDim.x * gridDim.x;
-    int tid = bidx * blockDim.x + tidx;
-    double temp = 0.0;
-    for (; tid < NUM_INPUT; tid += t_n)
-    {
-	    temp += a[tid] * b[tid];
-    }
-    tmp[tidx] = temp;
-    __syncthreads();
-    int i = NUM_INPUT / 2;
-    while (i != 0)
-    {
-        if (tidx < i)
-        {
-            tmp[tidx] += tmp[tidx + i];
-        }
-        __syncthreads();
-        i /= 2;
-    }
-    // 将共享内存的第一个数值赋值到结果数组中
-    if (tidx == 0)
-    {
-	    c_temp[bidx] = tmp[0];
-    }
-}
-
-
-// 使用多个block，最后规约在GPU上做
-__global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
-{
-    // 共享内存大小声明为block的数量
-    __shared__ DATATYPE tmp[BLOCKS];
-    const int tidx = threadIdx.x;
-    // 每个block内仅使用一个线程做规约
-    tmp[tidx] = c_temp[tidx];
-    __syncthreads();
-    // 和上面的低线程规约一样
-    int i = BLOCKS / 2;
-    while (i != 0)
-    {
-        if (tidx < i)
-        {
-            tmp[tidx] += tmp[tidx + i];
-        }
-        __syncthreads();
-        i /= 2;
-    }
-    if (tidx == 0)
-    {
-	    c[0] = tmp[0];
-    }
-}
-
-
 // 使用原子操作
 __global__ void vector_dot_product_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
