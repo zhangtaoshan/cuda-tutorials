@@ -20,76 +20,6 @@ void vector_add_serial(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 }
 
 
-// 使用单个block多个线程，使用分散规约
-__global__ void vector_dot_product_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
-{
-    // 共享内存大小定义为线程数
-    __shared__ DATATYPE tmp[THREADS];
-    const int tidx = threadIdx.x;
-    // 如果当前线程数少于数据，则需要线程作第多次计算，定义步长
-    const int t_n = blockDim.x;
-    // 每个线程有自己的变量
-    double temp = 0.0;
-    // 每次处理线程数个元素，如索引为0的线程的temp已经累加了0, 0+THREADS, 0+2*THREADS...的元素
-    for (int tid = tidx; tid < NUM_INPUT; tid += t_n)
-    {
-	    temp += a[tid] * b[tid];
-    }
-    // 为共享空间的每个位置赋值
-    tmp[tidx] = temp;
-    __syncthreads();
-    // 对THREADS个元素规约
-    int i = 2, j = 1;
-    // 进行log(THREADS)次计算
-    while (i <= THREADS)
-    {
-        if ((tidx % i) == 0)
-	    {
-            // 后一个规约到当前
-	        tmp[tidx] += tmp[tidx + j];
-	    }
-        __syncthreads();
-        i *= 2;
-        j *= 2;
-    }
-    // 规约完成后第一个位置的值即为最终答案
-    if (tidx == 0)
-    {
-	    c[0] = tmp[0];
-    }
-}
-
-
-// 使用单个block多个线程，使用低线程规约
-__global__ void vector_dot_product_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
-{
-    __shared__ DATATYPE tmp[NUM_INPUT];
-    int tidx = threadIdx.x;
-    const int t_n = blockDim.x;
-    double temp = 0.0;
-    for (int tid = tidx; tid < NUM_INPUT; tid += t_n)
-    {
-	    temp += a[tid] * b[tid];
-    }
-    tmp[tidx] = temp;
-    __syncthreads();
-    int i = NUM_INPUT / 2;
-    while (i != 0)
-    {
-        // 把线程分为小于i和大于i的两部分
-	if (tidx < i)
-	{
-            // 后面部分的元素以相同步长规约到前面元素
-	    tmp[tidx] += tmp[tidx + i];
-	}
-	__syncthreads();
-	i /= 2;
-    }
-    if (tidx == 0)
-    {
-	c[0] = tmp[0];
-    }
-}
 
 
 // 使用多个block，最后规约在CPU上做，每个block内部发生了和gpu_2中相同的操作
@@ -103,23 +33,24 @@ __global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_t
     double temp = 0.0;
     for (; tid < NUM_INPUT; tid += t_n)
     {
-	temp += a[tid] * b[tid];
+	    temp += a[tid] * b[tid];
     }
     tmp[tidx] = temp;
     __syncthreads();
     int i = NUM_INPUT / 2;
     while (i != 0)
     {
-	if (tidx < i)
-	{
-	    tmp[tidx] += tmp[tidx + i];
-	}
-	__syncthreads();
-	i /= 2;
+        if (tidx < i)
+        {
+            tmp[tidx] += tmp[tidx + i];
+        }
+        __syncthreads();
+        i /= 2;
     }
+    // 将共享内存的第一个数值赋值到结果数组中
     if (tidx == 0)
     {
-	c_temp[bidx] = tmp[0];
+	    c_temp[bidx] = tmp[0];
     }
 }
 
@@ -130,33 +61,34 @@ __global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
     // 共享内存大小声明为block的数量
     __shared__ DATATYPE tmp[BLOCKS];
     const int tidx = threadIdx.x;
+    // 每个block内仅使用一个线程做规约
     tmp[tidx] = c_temp[tidx];
     __syncthreads();
+    // 和上面的低线程规约一样
     int i = BLOCKS / 2;
     while (i != 0)
     {
-	if (tidx < i)
-	{
-	    tmp[tidx] += tmp[tidx + i];
-	}
-	__syncthreads();
-	i /= 2;
+        if (tidx < i)
+        {
+            tmp[tidx] += tmp[tidx + i];
+        }
+        __syncthreads();
+        i /= 2;
     }
-    // all elements reduce to the first element
     if (tidx == 0)
     {
-	c[0] = tmp[0];
+	    c[0] = tmp[0];
     }
 }
 
 
-// use aotmic to reduce vector add
+// 使用原子操作
 __global__ void vector_dot_product_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
-    // initialize to zero
+    // 初始化为零
     if ((threadIdx.x == 0) && (blockIdx.x == 0))
     {
-	c[0] = 0.0;
+	    c[0] = 0.0;
     }
     const int tidx = threadIdx.x;
     const int bidx = blockIdx.x;
@@ -165,7 +97,7 @@ __global__ void vector_dot_product_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     double temp = 0.0;
     for (; tid < NUM_INPUT; tid += t_n)
     {
-	temp += a[tid] * b[tid];
+	    temp += a[tid] * b[tid];
     }
     atomicAdd(c, temp);
 }
@@ -174,10 +106,9 @@ __global__ void vector_dot_product_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 // use aotmic to reduce vector add
 __global__ void vector_dot_product_gpu_6(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
-    // initialize to zero
     if ((threadIdx.x == 0) && (blockIdx.x == 0))
     {
-	c[0] = 0.0;
+	    c[0] = 0.0;
     }
     __shared__ DATATYPE tmp[NUM_INPUT];
     const int tidx = threadIdx.x;
@@ -187,23 +118,23 @@ __global__ void vector_dot_product_gpu_6(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     double temp = 0.0;
     for (; tid < NUM_INPUT; tid += t_n)
     {
-	temp += a[tid] * b[tid];
+	    temp += a[tid] * b[tid];
     }
     tmp[tidx] = temp;
     __syncthreads();
     int i = blockDim.x / 2;
     while (i != 0)
     {
-	if (tidx < i)
-	{
-	    tmp[tidx] += tmp[tidx + i];
-	}
-	__syncthreads();
-	i /= 2;
+        if (tidx < i)
+        {
+            tmp[tidx] += tmp[tidx + i];
+        }
+        __syncthreads();
+        i /= 2;
     }
     if (tidx == 0)
     {
-	atomicAdd(c, tmp[0]);
+	    atomicAdd(c, tmp[0]);
     }
 }
 
@@ -214,16 +145,16 @@ __device__ void vector_dot(DATATYPE* out, DATATYPE* temp)
     int i = blockDim.x / 2;
     while (i != 0)
     {
-	if (tidx < i)
-	{
-	    temp[tidx] += temp[tidx + i];
-	}
-	__syncthreads();
-	i /= 2;
+        if (tidx < i)
+        {
+            temp[tidx] += temp[tidx + i];
+        }
+        __syncthreads();
+        i /= 2;
     }
     if (tidx == 0)
     {
-	out[0] = temp[0];
+	    out[0] = temp[0];
     }
 }
 
@@ -238,7 +169,7 @@ __global__ void vector_dot_product_gpu_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, 
     double temp = 0.0;
     for (; tid < NUM_INPUT; tid += t_n)
     {
-	temp += a[tid] * b[tid];
+	    temp += a[tid] * b[tid];
     }
     tmp[tidx] = temp;
     __syncthreads();
@@ -247,16 +178,16 @@ __global__ void vector_dot_product_gpu_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, 
     __threadfence();
     if (tidx == 0)
     {
-	unsigned int lockiii = atomicAdd(&lockcount, 1);
-        lock = (lockcount == gridDim.x);
+        unsigned int lockiii = atomicAdd(&lockcount, 1);
+            lock = (lockcount == gridDim.x);
     }
     __syncthreads();
     if (lock)
     {
-	tmp[tidx] = c_temp[tidx];
-	__syncthreads();
-	vector_dot(c, tmp);
-	lockcount = 0;
+        tmp[tidx] = c_temp[tidx];
+        __syncthreads();
+        vector_dot(c, tmp);
+        lockcount = 0;
     }
 }
 

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <cuda_runtime.h>
 
-
 #define DATATYPE float
 
 
@@ -26,4 +25,3 @@ void print_matrix(DATATYPE* v, int m, int n)
         printf("\n");
     }
 }
-
