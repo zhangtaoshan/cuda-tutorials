@@ -8,7 +8,7 @@
 #define THREADS 128
 
 
-// 使用多个block，最后规约在CPU上做，每个block内部发生了和gpu_2中相同的操作
+// 使用多个block，最后归约在CPU上做，每个block内部发生了和gpu_2中相同的操作
 __global__ void vector_dot_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_temp)
 {
     __shared__ DATATYPE tmp[THREADS];
@@ -41,17 +41,17 @@ __global__ void vector_dot_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_temp)
 }
 
 
-// 使用多个block，最后规约在GPU上做
+// 使用多个block，最后归约在GPU上做
 __global__ void vector_dot_4(DATATYPE* c_temp, DATATYPE* c)
 {
     // 共享内存大小声明为block的数量
     __shared__ DATATYPE tmp[BLOCKS];
     const int tidx = threadIdx.x;
-    // 每个block内仅使用一个线程做规约
+    // 每个block内仅使用一个线程做归约
     tmp[tidx] = c_temp[tidx];
     __syncthreads();
-    // 和上面的低线程规约一样
-    int i = THREADS / 2;
+    // 和上面的低线程归约一样
+    int i = BLOCKS / 2;
     while (i != 0)
     {
         if (tidx < i)
@@ -83,7 +83,8 @@ int main()
     // 使用多个block，每个block单独计算自己的内容
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * BLOCKS);
     // baseline
-    vector_dot_baseline(h_a, h_b, NUM_INPUT);
+    DATATYPE* baseline = (DATATYPE*)malloc(sizeof(DATATYPE));
+    vector_dot_baseline(h_a, h_b, baseline, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -92,6 +93,7 @@ int main()
     cudaMemcpy(d_a, h_a, size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, h_b, size, cudaMemcpyHostToDevice);
     DATATYPE* d_c = NULL;
+    // 使用多个block，每个block单独计算自己的内容
     cudaMalloc((void**)&d_c, sizeof(DATATYPE) * BLOCKS);
     cudaError_t err = cudaGetLastError();
     if (err != 0) {
@@ -101,24 +103,7 @@ int main()
     // 定义启动核函数的参数
     dim3 blocksPerGrid(BLOCKS, 1, 1);
     dim3 threadsPerBlock(THREADS, 1, 1);
-    // 在CPU上规约
-    { 
-        vector_dot_3<<<blocksPerGrid, threadsPerBlock>>>(
-            d_a, d_b, d_c);
-        err = cudaGetLastError();
-        if (err != 0) {
-            printf("Error in forward: %s.\n", cudaGetErrorString(err));
-        }
-        // 拷贝输出数据
-        cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        DATATYPE temp = 0.0;
-        for (int i = 0; i < BLOCKS; ++i)
-        {
-            temp += h_c[i];
-        }
-        printf("result: %f\n", temp);
-    }
-    // 在GPU上规约
+    // 在CPU上归约
     {
         vector_dot_3<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
@@ -126,13 +111,34 @@ int main()
         if (err != 0) {
             printf("Error in forward: %s.\n", cudaGetErrorString(err));
         }
-        DATATYPE* dd_c = NULL;
-        cudaMalloc((void**)&dd_c, sizeof(DATATYPE));
-        vector_dot_4<<<1, blocksPerGrid>>>(d_c, dd_c);
-        // memory copy
-        cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
-        cudaFree(dd_c);
+        // 拷贝输出数据
+        cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * BLOCKS, cudaMemcpyDeviceToHost);
+        DATATYPE temp = 0.0;
+        for (int i = 0; i < BLOCKS; ++i)
+        {
+            temp += h_c[i];
+        }
+        check_value(baseline, &temp);
+    }
+    // 在GPU上归约
+    {
+        vector_dot_3<<<blocksPerGrid, threadsPerBlock>>>(
+            d_a, d_b, d_c);
+        err = cudaGetLastError();
+        if (err != 0) {
+            printf("Error in forward: %s.\n", cudaGetErrorString(err));
+        }
+        // 存放临时值
+        DATATYPE* temp_d_c = NULL;
+        cudaMalloc((void**)&temp_d_c, sizeof(DATATYPE));
+        // 在GPU上归约各block上的值，存放temp_d_c上
+        vector_dot_4<<<1, blocksPerGrid>>>(d_c, temp_d_c);
+        // 使用ret_c存放最终结果值
+        DATATYPE* ret_c = (DATATYPE*)malloc(sizeof(DATATYPE));
+        cudaMemcpy(ret_c, temp_d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
+        check_value(baseline, ret_c);
+        cudaFree(temp_d_c);
+        free(ret_c);
     }
     // 释放内存
     free(h_a);

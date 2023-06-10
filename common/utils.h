@@ -9,8 +9,9 @@ void print_vector(DATATYPE* v, int n)
 {
     for (int i = 0; i < n; ++i)
     {
-        printf("%f", v[i]);
+        printf("%f ", v[i]);
     }
+    printf("\n");
 }
 
 
@@ -20,37 +21,30 @@ void print_matrix(DATATYPE* v, int m, int n)
     {
         for (int j = 0; j < n; ++j)
         {
-            printf("%f", v[i * n + j]);
+            printf("%f ", v[i * n + j]);
         }
         printf("\n");
     }
 }
 
 
-double vector_add_baseline(DATATYPE* a, DATATYPE* b, int n)
+void vector_add_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 {
-    DATATYPE* c = (DATATYPE*)malloc(sizeof(DATATYPE) * n);
     for (int i = 0; i < n; ++i)
     {
         c[i] = a[i] + b[i];
     }
-    for (int i = 0; i < n; ++i)
-    {
-        printf("%f ", c[i]);
-    }
-    printf("\n");
-    free(c);
 }
 
 
-double vector_dot_baseline(DATATYPE* a, DATATYPE* b, int n)
+void vector_dot_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 {
-    double c = 0.0;
+    double temp = 0.0;
     for (int i = 0; i < n; ++i)
     {
-        c += a[i] * b[i];
+        temp += a[i] * b[i];
     }
-    printf("baseline results: %f\n", c);
+    *c = temp;
 }
 
 
@@ -85,4 +79,32 @@ void matrix_matmul_baseline(DATATYPE* a, DATATYPE* b, int m, int n, int l)
         }
     }
     print_matrix(c, m, n);
+}
+
+
+int check_value(DATATYPE* a, DATATYPE* b)
+{
+    // 原子操作使得结果精度较低
+    if (abs(*a - *b) > 1e-3)
+    {
+        printf("bad accuracy.\n");
+        return -1;
+    }
+    printf("ok.\n");
+    return 0;
+}
+
+
+int check_vector(DATATYPE* a, DATATYPE* b, int n)
+{
+    for (int i = 0; i < n; ++i)
+    {
+        if (abs(a[i] - b[i]) > 1e-4)
+        {
+            printf("bad accuracy.\n");
+            return -1;
+        }
+    }
+    printf("ok.\n");
+    return 0;
 }

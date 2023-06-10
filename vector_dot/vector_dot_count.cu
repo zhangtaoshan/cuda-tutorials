@@ -12,6 +12,7 @@ __device__ unsigned int lockcount = 0;
 
 __device__ void vector_dot(DATATYPE* out, DATATYPE* temp)
 {
+    // 归约一个block内的所有线程值，并存放到out中
     const int tidx = threadIdx.x;
     int i = blockDim.x / 2;
     while (i != 0)
@@ -32,7 +33,8 @@ __device__ void vector_dot(DATATYPE* out, DATATYPE* temp)
 
 __global__ void vector_dot_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, DATATYPE* c_temp)
 {
-    __shared__ DATATYPE tmp[NUM_INPUT];
+    // 常规操作将各元素存入线程自己的temp中后存入共享内存中
+    __shared__ DATATYPE tmp[THREADS];
     const int tidx = threadIdx.x;
     const int bidx = blockIdx.x;
     const int t_n = blockDim.x * gridDim.x;
@@ -44,13 +46,14 @@ __global__ void vector_dot_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, DATATYPE* c_
     }
     tmp[tidx] = temp;
     __syncthreads();
+    // 规约各个block内的线程值
     vector_dot(&c_temp[blockIdx.x], tmp);
     __shared__ bool lock;
     __threadfence();
     if (tidx == 0)
     {
         unsigned int lockiii = atomicAdd(&lockcount, 1);
-            lock = (lockcount == gridDim.x);
+        lock = (lockcount == gridDim.x);
     }
     __syncthreads();
     if (lock)
@@ -77,7 +80,8 @@ int main()
     // 使用多个block，每个block单独计算自己的内容
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * BLOCKS);
     // baseline
-    vector_dot_baseline(h_a, h_b, NUM_INPUT);
+    DATATYPE* baseline = (DATATYPE*)malloc(sizeof(DATATYPE));
+    vector_dot_baseline(h_a, h_b, baseline, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -96,7 +100,7 @@ int main()
     dim3 blocksPerGrid(BLOCKS, 1, 1);
     dim3 threadsPerBlock(THREADS, 1, 1);
     DATATYPE* dd_c = NULL;
-    cudaMalloc((void**)&dd_c, sizeof(DATATYPE));
+    cudaMalloc((void**)&dd_c, sizeof(DATATYPE) * BLOCKS);
     vector_dot_7<<<blocksPerGrid, threadsPerBlock>>>(
         d_a, d_b, d_c, dd_c);
     err = cudaGetLastError();
@@ -105,7 +109,7 @@ int main()
     }
     // memory copy
     cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-    printf("result: %f\n", *h_c);
+    check_value(baseline, h_c);
     cudaFree(dd_c);
     // 释放内存
     free(h_a);

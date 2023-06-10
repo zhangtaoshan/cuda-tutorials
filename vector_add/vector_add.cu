@@ -1,4 +1,4 @@
-#include "common/utils.h"
+#include "../common/utils.h"
 
 // 输入元素数量
 #define NUM_INPUT 2048
@@ -8,7 +8,7 @@
 #define THREADS 128
 
 
-__global__ void vector_add_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+__global__ void vector_add_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
     int tid = threadIdx.x;
     const int t_n = blockDim.x;
@@ -19,7 +19,7 @@ __global__ void vector_add_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 }
 
 
-__global__ void vector_add_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+__global__ void vector_add_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     const int t_n = gridDim.x * blockDim.x;
@@ -44,7 +44,8 @@ int main()
     }
     DATATYPE* h_c = (DATATYPE*)malloc(size);
     // baseline
-    vector_add_baseline(h_a, h_b, NUM_INPUT);
+    DATATYPE* baseline = (DATATYPE*)malloc(size);
+    vector_add_baseline(h_a, h_b, baseline, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -64,35 +65,36 @@ int main()
         // 定义启动核函数的参数
         dim3 blocksPerGrid(1, 1, 1);
         dim3 threadsPerBlock(THREADS, 1, 1);
-        vector_add_gpu_1<<<blocksPerGrid, threadsPerBlock>>>(
+        vector_add_1<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
         err = cudaGetLastError();
         if (err != 0) {
             printf("Error in forward: %s.\n", cudaGetErrorString(err));
         }
         // 拷贝输出数据
-        cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * NUM_INPUT, cudaMemcpyDeviceToHost);
+        check_vector(baseline, h_c, NUM_INPUT);
     }
     // 使用多个block
     {
         // 定义启动核函数的参数
         dim3 blocksPerGrid(BLOCKS, 1, 1);
         dim3 threadsPerBlock(THREADS, 1, 1);
-        vector_add_gpu_2<<<blocksPerGrid, threadsPerBlock>>>(
+        vector_add_2<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
         err = cudaGetLastError();
         if (err != 0) {
             printf("Error in forward: %s.\n", cudaGetErrorString(err));
         }
         // 拷贝输出数据
-        cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        cudaMemcpy(h_c, d_c, sizeof(DATATYPE) * NUM_INPUT, cudaMemcpyDeviceToHost);
+        check_vector(baseline, h_c, NUM_INPUT);
     }
     // 释放内存
     free(h_a);
     free(h_b);
     free(h_c);
+    free(baseline);
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);

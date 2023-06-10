@@ -6,7 +6,7 @@
 #define THREADS 128
 
 
-// 使用单个block多个线程，使用分散规约
+// 使用单个block多个线程，使用分散归约
 __global__ void vector_dot_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
     // 共享内存大小定义为线程数
@@ -24,21 +24,21 @@ __global__ void vector_dot_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     // 为共享空间的每个位置赋值
     tmp[tidx] = temp;
     __syncthreads();
-    // 对THREADS个元素规约
+    // 对THREADS个元素归约
     int i = 2, j = 1;
     // 进行log(THREADS)次计算
     while (i <= THREADS)
     {
         if ((tidx % i) == 0)
 	    {
-            // 后一个规约到当前
+            // 后一个归约到当前
 	        tmp[tidx] += tmp[tidx + j];
 	    }
         __syncthreads();
         i *= 2;
         j *= 2;
     }
-    // 规约完成后第一个位置的值即为最终答案
+    // 归约完成后第一个位置的值即为最终答案
     if (tidx == 0)
     {
 	    c[0] = tmp[0];
@@ -46,7 +46,7 @@ __global__ void vector_dot_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 }
 
 
-// 使用单个block多个线程，使用低线程规约
+// 使用单个block多个线程，使用低线程归约
 __global__ void vector_dot_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
     __shared__ DATATYPE tmp[THREADS];
@@ -65,7 +65,7 @@ __global__ void vector_dot_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
         // 把线程分为小于i和大于i的两部分
         if (tidx < i)
         {
-            // 后面部分的元素以相同步长规约到前面元素
+            // 后面部分的元素以相同步长归约到前面元素
             tmp[tidx] += tmp[tidx + i];
         }
         __syncthreads();
@@ -92,7 +92,8 @@ int main()
     }
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
     // baseline
-    vector_dot_baseline(h_a, h_b, NUM_INPUT);
+    DATATYPE* baseline = (DATATYPE*)malloc(sizeof(DATATYPE));
+    vector_dot_baseline(h_a, h_b, baseline, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -110,7 +111,7 @@ int main()
     // 定义启动核函数的参数
     dim3 blocksPerGrid(1, 1, 1);
     dim3 threadsPerBlock(THREADS, 1, 1);
-    // 使用分散规约
+    // 使用分散归约
     {
         vector_dot_1<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
@@ -120,9 +121,9 @@ int main()
         }
         // 拷贝输出数据
         cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        check_value(baseline, h_c);
     }
-    // 使用低线程规约
+    // 使用低线程归约
     {
         vector_dot_2<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
@@ -132,7 +133,7 @@ int main()
         }
         // 拷贝输出数据
         cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        check_value(baseline, h_c);
     }
     // 释放内存
     free(h_a);

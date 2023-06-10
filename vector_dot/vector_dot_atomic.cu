@@ -25,6 +25,7 @@ __global__ void vector_dot_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     {
 	    temp += a[tid] * b[tid];
     }
+    // 使用原子操作将各temp归约到c中，此时各个block内的元素还没有归约好
     atomicAdd(c, temp);
 }
 
@@ -58,6 +59,7 @@ __global__ void vector_dot_6(DATATYPE* a, DATATYPE* b, DATATYPE* c)
         __syncthreads();
         i /= 2;
     }
+    // 使用原子操作将各temp归约到c中，此时各个block内的元素已经归约好
     if (tidx == 0)
     {
 	    atomicAdd(c, tmp[0]);
@@ -79,7 +81,8 @@ int main()
     }
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE));
     // baseline
-    vector_dot_baseline(h_a, h_b, NUM_INPUT);
+    DATATYPE* baseline = (DATATYPE*)malloc(sizeof(DATATYPE));
+    vector_dot_baseline(h_a, h_b, baseline, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -106,7 +109,7 @@ int main()
         }
         // 拷贝输出数据
         cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        check_value(baseline, h_c);
     }
     {
         vector_dot_6<<<blocksPerGrid, threadsPerBlock>>>(
@@ -117,7 +120,7 @@ int main()
         }
         // 拷贝输出数据
         cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
-        printf("result: %f\n", *h_c);
+        check_value(baseline, h_c);
     }
     // 释放内存
     free(h_a);
