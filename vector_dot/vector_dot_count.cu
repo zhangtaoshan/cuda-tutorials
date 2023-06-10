@@ -30,7 +30,7 @@ __device__ void vector_dot(DATATYPE* out, DATATYPE* temp)
 }
 
 
-__global__ void vector_dot_product_gpu_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, DATATYPE* c_temp)
+__global__ void vector_dot_7(DATATYPE* a, DATATYPE* b, DATATYPE* c, DATATYPE* c_temp)
 {
     __shared__ DATATYPE tmp[NUM_INPUT];
     const int tidx = threadIdx.x;
@@ -74,11 +74,10 @@ int main()
         h_a[i] = rand() / (DATATYPE)RAND_MAX;
         h_b[i] = rand() / (DATATYPE)RAND_MAX;
     }
-    // baseline
-    double tmp = vector_dot_baseline(h_a, h_b, NUM_INPUT);
-    printf("baseline result: %f.\n", tmp);
     // 使用多个block，每个block单独计算自己的内容
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * BLOCKS);
+    // baseline
+    vector_dot_baseline(h_a, h_b, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -98,7 +97,7 @@ int main()
     dim3 threadsPerBlock(THREADS, 1, 1);
     DATATYPE* dd_c = NULL;
     cudaMalloc((void**)&dd_c, sizeof(DATATYPE));
-    vector_dot_product_gpu_7<<<blocksPerGrid, threadsPerBlock>>>(
+    vector_dot_7<<<blocksPerGrid, threadsPerBlock>>>(
         d_a, d_b, d_c, dd_c);
     err = cudaGetLastError();
     if (err != 0) {

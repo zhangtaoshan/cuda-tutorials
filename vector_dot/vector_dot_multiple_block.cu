@@ -9,7 +9,7 @@
 
 
 // 使用多个block，最后规约在CPU上做，每个block内部发生了和gpu_2中相同的操作
-__global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_temp)
+__global__ void vector_dot_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_temp)
 {
     __shared__ DATATYPE tmp[THREADS];
     const int tidx = threadIdx.x;
@@ -42,7 +42,7 @@ __global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_t
 
 
 // 使用多个block，最后规约在GPU上做
-__global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
+__global__ void vector_dot_4(DATATYPE* c_temp, DATATYPE* c)
 {
     // 共享内存大小声明为block的数量
     __shared__ DATATYPE tmp[BLOCKS];
@@ -80,11 +80,10 @@ int main()
         h_a[i] = rand() / (DATATYPE)RAND_MAX;
         h_b[i] = rand() / (DATATYPE)RAND_MAX;
     }
-    // baseline
-    double tmp = vector_dot_baseline(h_a, h_b, NUM_INPUT);
-    printf("baseline result: %f.\n", tmp);
     // 使用多个block，每个block单独计算自己的内容
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * BLOCKS);
+    // baseline
+    vector_dot_baseline(h_a, h_b, NUM_INPUT);
     // 分配设备上的内存并拷贝输入数据
     DATATYPE* d_a = NULL;
     cudaMalloc((void**)&d_a, size);
@@ -104,7 +103,7 @@ int main()
     dim3 threadsPerBlock(THREADS, 1, 1);
     // 在CPU上规约
     { 
-        vector_dot_product_gpu_3<<<blocksPerGrid, threadsPerBlock>>>(
+        vector_dot_3<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
         err = cudaGetLastError();
         if (err != 0) {
@@ -121,7 +120,7 @@ int main()
     }
     // 在GPU上规约
     {
-        vector_dot_product_gpu_3<<<blocksPerGrid, threadsPerBlock>>>(
+        vector_dot_3<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c);
         err = cudaGetLastError();
         if (err != 0) {
@@ -129,7 +128,7 @@ int main()
         }
         DATATYPE* dd_c = NULL;
         cudaMalloc((void**)&dd_c, sizeof(DATATYPE));
-        vector_dot_product_gpu_4<<<1, blocksPerGrid>>>(d_c, dd_c);
+        vector_dot_4<<<1, blocksPerGrid>>>(d_c, dd_c);
         // memory copy
         cudaMemcpy(h_c, d_c, sizeof(DATATYPE), cudaMemcpyDeviceToHost);
         printf("result: %f\n", *h_c);
