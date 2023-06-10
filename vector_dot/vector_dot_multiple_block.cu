@@ -23,7 +23,7 @@ __global__ void vector_dot_product_gpu_3(DATATYPE* a, DATATYPE* b, DATATYPE* c_t
     }
     tmp[tidx] = temp;
     __syncthreads();
-    int i = NUM_INPUT / 2;
+    int i = THREADS / 2;
     while (i != 0)
     {
         if (tidx < i)
@@ -51,7 +51,7 @@ __global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
     tmp[tidx] = c_temp[tidx];
     __syncthreads();
     // 和上面的低线程规约一样
-    int i = BLOCKS / 2;
+    int i = THREADS / 2;
     while (i != 0)
     {
         if (tidx < i)
@@ -67,6 +67,7 @@ __global__ void vector_dot_product_gpu_4(DATATYPE* c_temp, DATATYPE* c)
     }
 }
 
+
 int main()
 {
     // 输入元素所占空间
@@ -79,6 +80,9 @@ int main()
         h_a[i] = rand() / (DATATYPE)RAND_MAX;
         h_b[i] = rand() / (DATATYPE)RAND_MAX;
     }
+    // baseline
+    double tmp = vector_dot_baseline(h_a, h_b, NUM_INPUT);
+    printf("baseline result: %f.\n", tmp);
     // 使用多个block，每个block单独计算自己的内容
     DATATYPE* h_c = (DATATYPE*)malloc(sizeof(DATATYPE) * BLOCKS);
     // 分配设备上的内存并拷贝输入数据
@@ -143,4 +147,3 @@ int main()
         printf("Error in cudaFree: %s.\n", cudaGetErrorString(err));
     }
 }
-

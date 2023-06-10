@@ -2,70 +2,58 @@
 
 // 输入元素数量
 #define NUM_INPUT 2048
+// block的数量
+#define BLOCKS 2
 // 单个block中的线程数量
 #define THREADS 128
 
 
-// 使用单个block多个线程，使用分散规约
-__global__ void vector_dot_product_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+// 使用原子操作
+__global__ void vector_dot_product_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
-    // 共享内存大小定义为线程数
-    __shared__ DATATYPE tmp[THREADS];
+    // 初始化为零
+    if ((threadIdx.x == 0) && (blockIdx.x == 0))
+    {
+	    c[0] = 0.0;
+    }
     const int tidx = threadIdx.x;
-    // 如果当前线程数少于数据，则需要线程作第多次计算，定义步长
-    const int t_n = blockDim.x;
-    // 每个线程有自己的变量
+    const int bidx = blockIdx.x;
+    const int t_n = blockDim.x * gridDim.x;
+    int tid = bidx * blockDim.x + tidx;
     double temp = 0.0;
-    // 每次处理线程数个元素，如索引为0的线程的temp累加了0, 0+THREADS, 0+2*THREADS...的元素
-    for (int tid = tidx; tid < NUM_INPUT; tid += t_n)
+    for (; tid < NUM_INPUT; tid += t_n)
     {
 	    temp += a[tid] * b[tid];
     }
-    // 为共享空间的每个位置赋值
-    tmp[tidx] = temp;
-    __syncthreads();
-    // 对THREADS个元素规约
-    int i = 2, j = 1;
-    // 进行log(THREADS)次计算
-    while (i <= THREADS)
-    {
-        if ((tidx % i) == 0)
-	    {
-            // 后一个规约到当前
-	        tmp[tidx] += tmp[tidx + j];
-	    }
-        __syncthreads();
-        i *= 2;
-        j *= 2;
-    }
-    // 规约完成后第一个位置的值即为最终答案
-    if (tidx == 0)
-    {
-	    c[0] = tmp[0];
-    }
+    atomicAdd(c, temp);
 }
 
 
-// 使用单个block多个线程，使用低线程规约
-__global__ void vector_dot_product_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+
+__global__ void vector_dot_product_gpu_6(DATATYPE* a, DATATYPE* b, DATATYPE* c)
 {
+    // 初始化为零
+    if ((threadIdx.x == 0) && (blockIdx.x == 0))
+    {
+	    c[0] = 0.0;
+    }
     __shared__ DATATYPE tmp[THREADS];
-    int tidx = threadIdx.x;
-    const int t_n = blockDim.x;
+    const int tidx = threadIdx.x;
+    const int bidx = blockIdx.x;
+    const int t_n = blockDim.x * gridDim.x;
+    int tid = bidx * blockDim.x + tidx;
     double temp = 0.0;
-    for (int tid = tidx; tid < NUM_INPUT; tid += t_n)
+    for (; tid < NUM_INPUT; tid += t_n)
     {
 	    temp += a[tid] * b[tid];
     }
     tmp[tidx] = temp;
     __syncthreads();
-    int i = THREADS / 2;
+    int i = blockDim.x / 2;
     while (i != 0)
     {
-        // 把线程分为小于i和大于i的两部分
         if (tidx < i)
         {
-            // 后面部分的元素以相同步长规约到前面元素
             tmp[tidx] += tmp[tidx + i];
         }
         __syncthreads();
@@ -73,7 +61,7 @@ __global__ void vector_dot_product_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
     }
     if (tidx == 0)
     {
-	    c[0] = tmp[0];
+	    atomicAdd(c, tmp[0]);
     }
 }
 
@@ -111,7 +99,7 @@ int main()
     // 定义启动核函数的参数
     dim3 blocksPerGrid(1, 1, 1);
     dim3 threadsPerBlock(THREADS, 1, 1);
-    vector_dot_product_gpu_1<<<blocksPerGrid, threadsPerBlock>>>(
+    vector_dot_product_gpu_5<<<blocksPerGrid, threadsPerBlock>>>(
         d_a, d_b, d_c);
     err = cudaGetLastError();
     if (err != 0) {

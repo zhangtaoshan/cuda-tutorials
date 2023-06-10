@@ -25,3 +25,14 @@ void print_matrix(DATATYPE* v, int m, int n)
         printf("\n");
     }
 }
+
+
+double vector_dot_baseline(DATATYPE* a, DATATYPE* b, int n)
+{
+    double temp = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        temp += a[i] * b[i];
+    }
+    return temp;
+}
