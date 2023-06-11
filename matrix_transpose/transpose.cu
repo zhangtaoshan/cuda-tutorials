@@ -1,37 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <cuda_runtime.h>
+#include <../common/utils.h>
 
 #define DATATYPE float
 #define BLOCKS 16
 #define THREADS 64
 #define INPUT_M 256
 #define INPUT_N 512
-
-
-void print_matrix(DATATYPE* v, int m, int n)
-{
-    for (int i = 0; i < m; ++i)
-    {
-        for (int j = 0; j < n; ++j)
-        {
-            printf("%f ", v[i * n + j]);
-        }
-        printf("\n");
-    }
-}
-
-
-void matrix_transposition_serial_1(DATATYPE* a, DATATYPE* b, int m, int n)
-{
-    for (int i = 0; i < m; ++i)
-    {
-        for (int j = 0; j < n; ++j)
-        {
-            b[j * m + i] = a[i * n + j];
-        }
-    } 
-}
 
 
 void matrix_transposition_serial_2(DATATYPE* a, DATATYPE* b, int m, int n)

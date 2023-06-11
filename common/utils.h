@@ -48,23 +48,8 @@ void vector_dot_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 }
 
 
-void matrix_transposition_baseline(DATATYPE* a, int m, int n)
+void matrix_matmul_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
-    DATATYPE* b = (DATATYPE*)malloc(sizeof(DATATYPE) * m * n);
-    for (int i = 0; i < m; ++i)
-    {
-        for (int j = 0; j < n; ++j)
-        {
-            b[j * m + i] = a[i * n + j];
-        }
-    }
-    print_matrix(b, m, n);
-}
-
-
-void matrix_matmul_baseline(DATATYPE* a, DATATYPE* b, int m, int n, int l)
-{
-    DATATYPE* c = (DATATYPE*)malloc(sizeof(DATATYPE) * m * n);
     double temp = 0.0;
     for (int i = 0; i < m; ++i)
     {
@@ -78,7 +63,6 @@ void matrix_matmul_baseline(DATATYPE* a, DATATYPE* b, int m, int n, int l)
             c[i * n + j] = temp;
         }
     }
-    print_matrix(c, m, n);
 }
 
 
@@ -107,4 +91,23 @@ int check_vector(DATATYPE* a, DATATYPE* b, int n)
     }
     printf("ok.\n");
     return 0;
+}
+
+
+int check_matrix(DATATYPE* a, DATATYPE* b, int m, int n)
+{
+    for (int i = 0; i < m; ++i)
+    {
+        for (int j = 0; j < n; ++j)
+        {
+            // 1e-4通不过会有精度损失
+            if (abs(a[i * n + j] - b[i * n + j]) > 1e-3)
+            {
+                printf("bad accuracy.\n");
+                return -1;
+            }
+        }
+    }
+    printf("ok.\n");
+    return 0;  
 }
