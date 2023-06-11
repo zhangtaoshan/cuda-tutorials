@@ -48,7 +48,7 @@ void vector_dot_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 }
 
 
-void matrix_matmul_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+void matrix_multiplication_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
     double temp = 0.0;
     for (int i = 0; i < m; ++i)

@@ -11,30 +11,6 @@
 #define NUM_THREADS_IN_ZONE 32
 
 
-__global__ void matrix_multiplication_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
-{
-    const int tidx = threadIdx.x;
-    const int bidx = blockIdx.x;
-    // thread index in grid
-    const int idx = bidx * blockDim.x + tidx;
-    // row thread in output c
-    const int row = idx / n;
-    // column thread in output c
-    const int col = idx % n;
-    if (row < m && col < n)
-    {
-	double tmp = 0.0;
-	for (int i = 0; i < l; ++i)
-	{
-	    // a=(m,l), b=(l,n)
-	    tmp += a[row * l + i] * b[i * n + col];
-	}
-	// c=(m,n)
-	c[row * n + col] = tmp;
-    }
-}
-
-
 __global__ void matrix_multiplication_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
     int tidx = threadIdx.x;

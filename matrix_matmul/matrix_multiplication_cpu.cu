@@ -1,13 +1,13 @@
 #include "../common/utils.h"
 
 // 输入矩阵维度
-#define INPUT_M 2
-#define INPUT_N 7
-#define INPUT_L 5
+#define INPUT_M 200
+#define INPUT_N 700
+#define INPUT_L 500
 
 
 // 相比于原普通矩阵乘法，由于在取b矩阵的列元素时数据不连续，这里交换内部两层循环并做适当处理
-void matrix_matmul_cpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+void matrix_multiplication_cpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
     // 初始化结果矩阵
     double temp = 0.0;
@@ -32,7 +32,7 @@ void matrix_matmul_cpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, in
 
 
 // 在原普通矩阵乘法中，由于b不连续所有会降低访存效率，现将b转置而每次取b矩阵的一行
-void matrix_matmul_cpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+void matrix_multiplication_cpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
     // 将矩阵b转置
     DATATYPE* b_t = (DATATYPE*)malloc(sizeof(DATATYPE) * l * n);
@@ -86,15 +86,15 @@ int main()
     DATATYPE* h_c = (DATATYPE*)malloc(size_c);
     // baseline
     DATATYPE* baseline = (DATATYPE*)malloc(size_c);
-    matrix_matmul_baseline(h_a, h_b, baseline, INPUT_M, INPUT_N, INPUT_L);
+    matrix_multiplication_baseline(h_a, h_b, baseline, INPUT_M, INPUT_N, INPUT_L);
     // 交换内部两层循环优化数据访问
     {
-        matrix_matmul_cpu_1(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_L);
+        matrix_multiplication_cpu_1(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_L);
         check_matrix(baseline, h_c, INPUT_M, INPUT_N);
     }
     // 将矩阵b转置
     {
-        matrix_matmul_cpu_2(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_L);
+        matrix_multiplication_cpu_2(h_a, h_b, h_c, INPUT_M, INPUT_N, INPUT_L);
         check_matrix(baseline, h_c, INPUT_M, INPUT_N);
     }
     // 内存释放
