@@ -16,6 +16,60 @@ __global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* 
     // 矩阵a和矩阵b的共享内存
     __shared__ DATATYPE matA[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
     __shared__ DATATYPE matB[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
+    // 当前线程所在列
+    const int tid_col = threadIdx.x;
+    // 当前线程所在行
+    const int tid_row = threadIdx.y;
+    // 当前块所在列
+    const int bid_col = blockIdx.x * NUM_THREADS_IN_ZONE;
+    // 当前块所在行
+    const int bid_row = blockIdx.y * NUM_THREADS_IN_ZONE;
+    double results = 0.0;
+    // 按照块大小划分矩阵并给共享内存区域赋值，沿着公共方向l
+    for (int j = 0; j < l; j += NUM_THREADS_IN_ZONE)
+    {
+        // 往a的共享内存写数据
+        if (tid_row + bid_row < m && tid_col + j < l)
+        {
+            // a=(m,l)
+            matA[tid_row][tid_col] = a[(tid_row + bid_row) * l + (tid_col + j)];
+        }
+        // 越界处理
+        else 
+        {
+            matA[tid_row][tid_col] = 0;
+        }
+        // 往b的共享内存写数据
+        if (tid_row + j < l && tid_col + bid_col < n)
+        {
+            // b=(l,n)	
+            matB[tid_row][tid_col] = b[(tid_row + j) * n + (tid_col + bid_col)];
+        }
+        else 
+        {
+            matB[tid_row][tid_col] = 0;
+        }
+        __syncthreads();
+        // 在1个网格内作矩阵乘法
+        for (int i = 0; i < NUM_THREADS_IN_ZONE; ++i)
+        {
+            results += matA[tid_row][i] * matB[i][tid_col];
+        }
+        __syncthreads();
+    }
+    if (tid_row + bid_row < m && tid_col + bid_col < n)
+    {
+        // c=(m,n)
+	    c[(tid_row + bid_row) * n + (tid_col + bid_col)] = results;
+    }
+}
+
+
+__global__ void matrix_multiplication_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+{
+    // dynamic shared memory of matrix A and matrix B
+    __shared__ DATATYPE matA[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
+    __shared__ DATATYPE matB[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
     // column NUM_THREADS_IN_ZONE
     const int tid_col = threadIdx.y;
     // row NUM_THREADS_IN_ZONE
@@ -27,27 +81,11 @@ __global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* 
     double results = 0.0;
     for (int j = 0; j < l; j += NUM_THREADS_IN_ZONE)
     {
-        // write data from a to shared memory
-        if (tid_row + bid_row < m && tid_col + j < l)
-        {
-            // a=(m,l)
-            matA[tid_row][tid_col] = a[(tid_row + bid_row) * l + tid_col + j];
-        }
-        else 
-        {
-            matA[tid_row][tid_col] = 0;
-        }
-        // write data from b to shared memory
-        if (tid_row + j < l && tid_col + bid_col < n)
-        {
-            // b=(l,n)	
-            matB[tid_row][tid_col] = b[(tid_row + j) * n + tid_col + bid_col];
-        }
-        else 
-        {
-            matB[tid_row][tid_col] = 0;
-        }
-        __syncthreads();
+        // a=(m,l)
+        matA[tid_row][tid_col] = a[(tid_row + bid_row) * l + tid_col + j];
+        // b=(l,n)	
+        matB[tid_row][tid_col] = b[(tid_row + j) * n + tid_col + bid_col];
+            __syncthreads();
         // do matrix multiplication in one zone
         for (int i = 0; i < NUM_THREADS_IN_ZONE; ++i)
         {
@@ -112,9 +150,28 @@ int main()
     {
         // 定义启动核函数的参数
         int bx = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
-        dim3 blocksPerGrid(bx, bx, 1);
+        int by = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        dim3 blocksPerGrid(bx, by, 1);
         dim3 threadsPerBlock(NUM_THREADS_IN_ZONE, NUM_THREADS_IN_ZONE, 1);
         matrix_multiplication_gpu_4<<<blocksPerGrid, threadsPerBlock>>>(
+            d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_L);
+        err = cudaGetLastError();
+        if (err != 0)
+        {
+            printf("error in kernel forward: %s\n", cudaGetErrorString(err));
+        }
+        // 拷贝输出数据
+        cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
+        check_matrix(baseline, h_c, INPUT_M, INPUT_N);
+    }
+    // 在上述基础上判断移除
+    {
+        // 定义启动核函数的参数
+        int bx = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        int by = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        dim3 blocksPerGrid(bx, by, 1);
+        dim3 threadsPerBlock(NUM_THREADS_IN_ZONE, NUM_THREADS_IN_ZONE, 1);
+        matrix_multiplication_gpu_5<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_L);
         err = cudaGetLastError();
         if (err != 0)

@@ -66,6 +66,19 @@ void matrix_multiplication_baseline(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m
 }
 
 
+// 读连续，也可以交换两层循环后用写连续
+void matrix_transpose_baseline(DATATYPE* a, DATATYPE* b, int m, int n)
+{
+    for (int j = 0; j < n; ++j)
+    {
+        for (int i = 0; i < m; ++i)
+        {
+            b[j * m + i] = a[i * n + j];
+        }
+    }
+}
+
+
 int check_value(DATATYPE* a, DATATYPE* b)
 {
     // 原子操作使得结果精度较低
