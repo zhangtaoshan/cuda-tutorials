@@ -7,52 +7,57 @@
 // 线程数和block数
 #define THREADS 512
 #define BLOCKS 4
+// 每个网格内使用的线程数
+#define NUM_THREADS_IN_ZONE 32
 
 
-__global__ void matrix_multiplication_gpu_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
+__global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
-    // 每个线程处理a的1行和b的1列的内积运算
-    const int tidx = threadIdx.x;
-    const int bidx = blockIdx.x;
-    // 线程在grid内的索引，每个线程计算a的1行和b的1列
-    const int idx = bidx * blockDim.x + tidx;
-    // 行索引
-    const int row = idx / n;
-    // 列索引
-    const int col = idx % n;
-    if (row < m && col < n)
+    // 矩阵a和矩阵b的共享内存
+    __shared__ DATATYPE matA[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
+    __shared__ DATATYPE matB[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
+    // column NUM_THREADS_IN_ZONE
+    const int tid_col = threadIdx.y;
+    // row NUM_THREADS_IN_ZONE
+    const int tid_row = threadIdx.x;
+    // column blocks
+    const int bid_col = blockIdx.y * NUM_THREADS_IN_ZONE;
+    // row blocks
+    const int bid_row = blockIdx.x * NUM_THREADS_IN_ZONE;
+    double results = 0.0;
+    for (int j = 0; j < l; j += NUM_THREADS_IN_ZONE)
     {
-        double temp = 0.0;
-        for (int i = 0; i < l; ++i)
+        // write data from a to shared memory
+        if (tid_row + bid_row < m && tid_col + j < l)
         {
-            // a=(m,l), b=(l,n)
-            temp += a[row * l + i] * b[i * n + col];
+            // a=(m,l)
+            matA[tid_row][tid_col] = a[(tid_row + bid_row) * l + tid_col + j];
         }
-	// c=(m,n)
-	c[row * n + col] = temp;
+        else 
+        {
+            matA[tid_row][tid_col] = 0;
+        }
+        // write data from b to shared memory
+        if (tid_row + j < l && tid_col + bid_col < n)
+        {
+            // b=(l,n)	
+            matB[tid_row][tid_col] = b[(tid_row + j) * n + tid_col + bid_col];
+        }
+        else 
+        {
+            matB[tid_row][tid_col] = 0;
+        }
+        __syncthreads();
+        // do matrix multiplication in one zone
+        for (int i = 0; i < NUM_THREADS_IN_ZONE; ++i)
+        {
+            results += matA[tid_row][i] * matB[i][tid_col];
+        }
+        __syncthreads();
     }
-}
-
-
-__global__ void matrix_multiplication_gpu_2(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
-{
-    int tidx = threadIdx.x;
-    int bidx = blockIdx.x;
-    double tmp = 0.0;
-    // 每个block计算输出矩阵的1行
-    for (; bidx < m; bidx += gridDim.x)
+    if (tid_row + bid_row < m && tid_col + bid_col < n)
     {
-        for (; tidx < n; tidx += blockDim.x)
-        {
-            tmp = 0.0;
-            for (int i = 0; i < l; ++i)
-            {
-                // a=(m,l), b=(l,n)
-                tmp += a[bidx * l + i] * b[i * n + tidx];
-            }
-            // c=(m,n)
-            c[bidx * n + tidx] = tmp;
-        }
+	    c[(tid_row + bid_row) * n + tid_col + bid_col] = results;
     }
 }
 
@@ -88,12 +93,12 @@ int main()
     cudaMalloc((void**)&d_a, size_a);
     DATATYPE* d_b = NULL;
     cudaMalloc((void**)&d_b, size_b);
-    DATATYPE* d_c = NULL;
     cudaError_t err = cudaGetLastError();
     if (err != 0)
     {
         printf("error in cudaMalloc: %s\n", cudaGetErrorString(err));
     }
+    DATATYPE* d_c = NULL;
     cudaMalloc((void**)&d_c, size_c);
     // 数据拷贝
     cudaMemcpy(d_a, h_a, size_a, cudaMemcpyHostToDevice);
@@ -103,12 +108,13 @@ int main()
     {
         printf("error in cudaMemcpy: %s\n", cudaGetErrorString(err));
     }
-    // 使用grid内所有线程计算
+    // 矩阵a的1行放入共享内存中
     {
         // 定义启动核函数的参数
-        dim3 blocksPerGrid(((INPUT_M + THREADS - 1) / THREADS) * INPUT_M, 1, 1);
-        dim3 threadsPerBlock(THREADS, 1, 1);
-        matrix_multiplication_gpu_1<<<blocksPerGrid, threadsPerBlock>>>(
+        int bx = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        dim3 blocksPerGrid(bx, bx, 1);
+        dim3 threadsPerBlock(NUM_THREADS_IN_ZONE, NUM_THREADS_IN_ZONE, 1);
+        matrix_multiplication_gpu_4<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_L);
         err = cudaGetLastError();
         if (err != 0)
@@ -118,22 +124,6 @@ int main()
         // 拷贝输出数据
         cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
         check_matrix(baseline, h_c, INPUT_M, INPUT_N);
-    }
-    // 每个block计算得到输出矩阵的1行
-    {
-        // 定义启动核函数的参数
-        dim3 blocksPerGrid(INPUT_M, 1, 1);
-        dim3 threadsPerBlock(THREADS, 1, 1);
-        matrix_multiplication_gpu_2<<<blocksPerGrid, threadsPerBlock>>>(
-            d_a, d_b, d_c, INPUT_M, INPUT_N, INPUT_L);
-        err = cudaGetLastError();
-        if (err != 0)
-        {
-            printf("error in kernel forward: %s\n", cudaGetErrorString(err));
-        }
-        // 拷贝输出数据
-        cudaMemcpy(h_c, d_c, size_c, cudaMemcpyDeviceToHost);
-        check_matrix(baseline, h_c, INPUT_M, INPUT_N);  
     }
     // 内存释放
     cudaFree(d_a);
