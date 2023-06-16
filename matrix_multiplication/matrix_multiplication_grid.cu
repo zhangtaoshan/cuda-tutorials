@@ -4,9 +4,6 @@
 #define INPUT_M 200
 #define INPUT_N 700
 #define INPUT_L 500
-// 线程数和block数
-#define THREADS 512
-#define BLOCKS 4
 // 每个网格内使用的线程数
 #define NUM_THREADS_IN_ZONE 32
 
@@ -17,13 +14,13 @@ __global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* 
     __shared__ DATATYPE matA[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
     __shared__ DATATYPE matB[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
     // 当前线程所在列
-    const int tid_col = threadIdx.x;
+    const int tid_col = threadIdx.y;
     // 当前线程所在行
-    const int tid_row = threadIdx.y;
+    const int tid_row = threadIdx.x;
     // 当前块所在列
-    const int bid_col = blockIdx.x * NUM_THREADS_IN_ZONE;
+    const int bid_col = blockIdx.y * NUM_THREADS_IN_ZONE;
     // 当前块所在行
-    const int bid_row = blockIdx.y * NUM_THREADS_IN_ZONE;
+    const int bid_row = blockIdx.x * NUM_THREADS_IN_ZONE;
     double results = 0.0;
     // 按照块大小划分矩阵并给共享内存区域赋值，沿着公共方向l
     for (int j = 0; j < l; j += NUM_THREADS_IN_ZONE)
@@ -45,6 +42,7 @@ __global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* 
             // b=(l,n)	
             matB[tid_row][tid_col] = b[(tid_row + j) * n + (tid_col + bid_col)];
         }
+        // 越界处理
         else 
         {
             matB[tid_row][tid_col] = 0;
@@ -67,16 +65,11 @@ __global__ void matrix_multiplication_gpu_4(DATATYPE* a, DATATYPE* b, DATATYPE* 
 
 __global__ void matrix_multiplication_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* c, int m, int n, int l)
 {
-    // dynamic shared memory of matrix A and matrix B
     __shared__ DATATYPE matA[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
     __shared__ DATATYPE matB[NUM_THREADS_IN_ZONE][NUM_THREADS_IN_ZONE];
-    // column NUM_THREADS_IN_ZONE
     const int tid_col = threadIdx.y;
-    // row NUM_THREADS_IN_ZONE
     const int tid_row = threadIdx.x;
-    // column blocks
     const int bid_col = blockIdx.y * NUM_THREADS_IN_ZONE;
-    // row blocks
     const int bid_row = blockIdx.x * NUM_THREADS_IN_ZONE;
     double results = 0.0;
     for (int j = 0; j < l; j += NUM_THREADS_IN_ZONE)
@@ -86,7 +79,6 @@ __global__ void matrix_multiplication_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* 
         // b=(l,n)	
         matB[tid_row][tid_col] = b[(tid_row + j) * n + tid_col + bid_col];
             __syncthreads();
-        // do matrix multiplication in one zone
         for (int i = 0; i < NUM_THREADS_IN_ZONE; ++i)
         {
             results += matA[tid_row][i] * matB[i][tid_col];
@@ -95,6 +87,7 @@ __global__ void matrix_multiplication_gpu_5(DATATYPE* a, DATATYPE* b, DATATYPE* 
     }
     if (tid_row + bid_row < m && tid_col + bid_col < n)
     {
+        // c=(m,n)
 	    c[(tid_row + bid_row) * n + tid_col + bid_col] = results;
     }
 }
@@ -150,7 +143,7 @@ int main()
     {
         // 定义启动核函数的参数
         int bx = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
-        int by = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        int by = (INPUT_N + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
         dim3 blocksPerGrid(bx, by, 1);
         dim3 threadsPerBlock(NUM_THREADS_IN_ZONE, NUM_THREADS_IN_ZONE, 1);
         matrix_multiplication_gpu_4<<<blocksPerGrid, threadsPerBlock>>>(
@@ -168,7 +161,7 @@ int main()
     {
         // 定义启动核函数的参数
         int bx = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
-        int by = (INPUT_M + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
+        int by = (INPUT_N + NUM_THREADS_IN_ZONE - 1) / NUM_THREADS_IN_ZONE;
         dim3 blocksPerGrid(bx, by, 1);
         dim3 threadsPerBlock(NUM_THREADS_IN_ZONE, NUM_THREADS_IN_ZONE, 1);
         matrix_multiplication_gpu_5<<<blocksPerGrid, threadsPerBlock>>>(

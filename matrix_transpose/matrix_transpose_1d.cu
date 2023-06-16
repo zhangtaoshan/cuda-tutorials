@@ -1,9 +1,8 @@
 #include "../common/utils.h"
 
 // 输入矩阵维度
-#define INPUT_M 200
-#define INPUT_N 700
-#define INPUT_L 500
+#define INPUT_M 20
+#define INPUT_N 70
 // 线程数和block数
 #define THREADS 512
 #define BLOCKS 4
@@ -11,17 +10,19 @@
 
 __global__ void matrix_transposition_gpu_1d(DATATYPE* a, DATATYPE* b, int m, int n)
 { 
-    int tidx = threadIdx.x;
-    int bidx = blockIdx.x;
-    // 每个block处理矩阵的1行（列）
-    while (bidx < m)
+    const int tidx = threadIdx.x;
+    const int bidx = blockIdx.x;
+    int tid = tidx;
+    int bid = bidx;
+    while (bid < m)
     {
-        while (tidx < n)
+        while (tid < n)
         {
-            b[tidx * m + bidx] = a[bidx * n + tidx];
-            tidx += blockDim.x;
+            // b=(n,m), a=(m,n)
+            b[tid * m + bid] = a[bid * n + tid];
+            tid += blockDim.x;
         }
-        bidx += gridDim.x;
+        bid += gridDim.x;
     }
 }
 
