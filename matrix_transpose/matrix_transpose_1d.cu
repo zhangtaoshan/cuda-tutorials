@@ -1,11 +1,10 @@
 #include "../common/utils.h"
 
 // 输入矩阵维度
-#define INPUT_M 20
-#define INPUT_N 70
+#define INPUT_M 200
+#define INPUT_N 700
 // 线程数和block数
 #define THREADS 512
-#define BLOCKS 4
 
 
 __global__ void matrix_transposition_gpu_1d(DATATYPE* a, DATATYPE* b, int m, int n)
@@ -61,10 +60,10 @@ int main()
     {
         printf("error in cudaMemcpy: %s\n", cudaGetErrorString(err));
     }
-    // 使用grid内所有线程计算
+    // 1个block转置矩阵的1行
     {
         // 定义启动核函数的参数
-        dim3 blocksPerGrid(BLOCKS, 1, 1);
+        dim3 blocksPerGrid(INPUT_M, 1, 1);
         dim3 threadsPerBlock(THREADS, 1, 1);
         matrix_transposition_gpu_1d<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, INPUT_M, INPUT_N);

@@ -3,10 +3,8 @@
 // 输入矩阵维度
 #define INPUT_M 200
 #define INPUT_N 700
-#define INPUT_L 500
 // 线程数和block数
-#define THREADS 512
-#define BLOCKS 4
+#define THREADS 32
 
 
 // TODO: 和giagonal优化对比
@@ -57,11 +55,11 @@ int main()
     {
         printf("error in cudaMemcpy: %s\n", cudaGetErrorString(err));
     }
-    // 使用grid内所有线程计算
+    // 使用2维线程 
     {
         // 定义启动核函数的参数
-        int nbx = (INPUT_M + THREADS - 1) / THREADS;
-        int nby = (INPUT_N + THREADS - 1) / THREADS;
+        int nbx = (INPUT_N + THREADS - 1) / THREADS;
+        int nby = (INPUT_M + THREADS - 1) / THREADS;
         dim3 blocksPerGrid(nbx, nby, 1);
         dim3 threadsPerBlock(THREADS, THREADS, 1);
         matrix_transposition_gpu_2d_1<<<blocksPerGrid, threadsPerBlock>>>(
