@@ -1,0 +1,11 @@
+project(vector_dot CUDA)
+
+add_executable(vector_dot_single_block vector_dot_single_block.cu)
+add_executable(vector_dot_multiple_block vector_dot_multiple_block.cu)
+add_executable(vector_dot_count vector_dot_count.cu)
+add_executable(vector_dot_atomic vector_dot_atomic.cu)
+
+set_target_properties(vector_dot_single_block PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(vector_dot_multiple_block PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(vector_dot_count PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(vector_dot_atomic PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
