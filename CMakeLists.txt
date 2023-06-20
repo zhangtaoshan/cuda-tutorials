@@ -10,4 +10,5 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 add_subdirectory(vector_add)
 add_subdirectory(vector_dot)
-
+add_subdirectory(matrix_multiplication)
+add_subdirectory(matrix_transpose)

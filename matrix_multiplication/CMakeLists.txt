@@ -1,0 +1,11 @@
+project(matrix_multiplication CUDA)
+
+add_executable(matrix_multiplication_cpu matrix_multiplication_cpu.cu)
+add_executable(matrix_multiplication_gpu matrix_multiplication_gpu.cu)
+add_executable(matrix_multiplication_shared matrix_multiplication_shared.cu)
+add_executable(matrix_multiplication_grid matrix_multiplication_grid.cu)
+
+set_target_properties(matrix_multiplication_cpu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(matrix_multiplication_gpu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(matrix_multiplication_shared PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(matrix_multiplication_grid PROPERTIES CUDA_SEPARABLE_COMPILATION ON)

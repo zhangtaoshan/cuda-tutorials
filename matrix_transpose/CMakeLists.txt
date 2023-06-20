@@ -1,0 +1,9 @@
+project(matrix_multiplication CUDA)
+
+add_executable(matrix_transpose_1d matrix_transpose_1d.cu)
+add_executable(matrix_transpose_2d matrix_transpose_2d.cu)
+add_executable(matrix_transpose_shared matrix_transpose_shared.cu)
+
+set_target_properties(matrix_transpose_1d PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(matrix_transpose_2d PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(matrix_transpose_shared PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
