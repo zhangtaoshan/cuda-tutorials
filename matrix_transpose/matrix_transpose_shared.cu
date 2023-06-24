@@ -3,27 +3,27 @@
 // 输入矩阵维度
 #define INPUT_M 200
 #define INPUT_N 700
-#define INPUT_L 500
 // 线程数和block数
-#define THREADS 512
-#define BLOCKS 4
+#define BLOCK_DIM 16
 
 
 __global__ void matrix_transposition_gpu_2d_2(DATATYPE* a, DATATYPE* b, int m, int n)
 {
-    __shared__ DATATYPE tmp[BLOCKS][BLOCKS + 1];
+    __shared__ DATATYPE tmp[BLOCK_DIM][BLOCK_DIM + 1];
     // put the elements from a to shared memory
-    int xIndex = blockIdx.x * blockDim.x + threadIdx.x;
-    int yIndex = blockIdx.y * blockDim.y + threadIdx.y;
+    int xIndex = blockIdx.x * BLOCK_DIM + threadIdx.x;
+    int yIndex = blockIdx.y * BLOCK_DIM + threadIdx.y;
     if (xIndex < n && yIndex < m)
     {
+        // a=(m,n)
         tmp[threadIdx.y][threadIdx.x] = a[yIndex * n + xIndex];
     }
     __syncthreads();
-    xIndex = blockIdx.y * BLOCKS + threadIdx.x;
-    yIndex = blockIdx.x * BLOCKS + threadIdx.y;
+    xIndex = blockIdx.y * BLOCK_DIM + threadIdx.x;
+    yIndex = blockIdx.x * BLOCK_DIM + threadIdx.y;
     if (xIndex < m && yIndex < n)
     {
+        // b=(n,m)
         b[yIndex * m + xIndex] = tmp[threadIdx.x][threadIdx.y];
     }
 }
@@ -63,13 +63,12 @@ int main()
     {
         printf("error in cudaMemcpy: %s\n", cudaGetErrorString(err));
     }
-    // 使用grid内所有线程计算
     {
         // 定义启动核函数的参数
-        int nbx = (INPUT_M + THREADS - 1) / THREADS;
-        int nby = (INPUT_N + THREADS - 1) / THREADS;
+        int nbx = (INPUT_N + BLOCK_DIM - 1) / BLOCK_DIM;
+        int nby = (INPUT_M + BLOCK_DIM - 1) / BLOCK_DIM;
         dim3 blocksPerGrid(nbx, nby, 1);
-        dim3 threadsPerBlock(THREADS, THREADS, 1);
+        dim3 threadsPerBlock(BLOCK_DIM, BLOCK_DIM, 1);
         matrix_transposition_gpu_2d_2<<<blocksPerGrid, threadsPerBlock>>>(
             d_a, d_b, INPUT_M, INPUT_N);
         err = cudaGetLastError();

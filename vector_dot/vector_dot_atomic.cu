@@ -59,7 +59,7 @@ __global__ void vector_dot_6(DATATYPE* a, DATATYPE* b, DATATYPE* c)
         __syncthreads();
         i /= 2;
     }
-    // 使用原子操作将各temp归约到c中，此时各个block内的元素已经归约好
+    // 使用原子操作将各temp归约到c中
     if (tidx == 0)
     {
 	    atomicAdd(c, tmp[0]);

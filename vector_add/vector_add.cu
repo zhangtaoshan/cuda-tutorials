@@ -8,22 +8,22 @@
 #define THREADS 128
 
 
-__global__ void vector_add_1(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+__global__ void vector_add_1(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 {
     int tid = threadIdx.x;
     const int t_n = blockDim.x;
-    for (; tid < NUM_INPUT; tid += t_n)
+    for (; tid < n; tid += t_n)
     {
         c[tid] = a[tid] + b[tid];
     }
 }
 
 
-__global__ void vector_add_2(DATATYPE* a, DATATYPE* b, DATATYPE* c)
+__global__ void vector_add_2(DATATYPE* a, DATATYPE* b, DATATYPE* c, int n)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     const int t_n = gridDim.x * blockDim.x;
-    for (; tid < NUM_INPUT; tid += t_n)
+    for (; tid < n; tid += t_n)
     {
         c[tid] = a[tid] + b[tid];
     }
@@ -66,7 +66,7 @@ int main()
         dim3 blocksPerGrid(1, 1, 1);
         dim3 threadsPerBlock(THREADS, 1, 1);
         vector_add_1<<<blocksPerGrid, threadsPerBlock>>>(
-            d_a, d_b, d_c);
+            d_a, d_b, d_c, NUM_INPUT);
         err = cudaGetLastError();
         if (err != 0) {
             printf("Error in forward: %s.\n", cudaGetErrorString(err));
@@ -81,7 +81,7 @@ int main()
         dim3 blocksPerGrid(BLOCKS, 1, 1);
         dim3 threadsPerBlock(THREADS, 1, 1);
         vector_add_2<<<blocksPerGrid, threadsPerBlock>>>(
-            d_a, d_b, d_c);
+            d_a, d_b, d_c, NUM_INPUT);
         err = cudaGetLastError();
         if (err != 0) {
             printf("Error in forward: %s.\n", cudaGetErrorString(err));
